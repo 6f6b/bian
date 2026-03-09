@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>我的笔记</title>
+<title>笔记文件浏览器</title>
 <style>
 body{font-family:Arial;padding:20px;max-width:900px;margin:auto;}
 a{display:block;margin:4px 0;color:#0366d6;text-decoration:none;}
@@ -11,76 +11,94 @@ a:hover{text-decoration:underline;}
 </style>
 </head>
 <body>
+
 <h1>笔记浏览器</h1>
 <div id="list"></div>
 <div id="md-viewer"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
-const user = "6f6b";  // 改成你的用户名
+const user = "6f6b";  // 改成你的 GitHub 用户名
 const repo = "bian";        // 改成你的仓库名
+const extMap = ["md","pdf","png","jpg"]; // 支持的文件类型
 
-// 解析路径
-const path = window.location.pathname.split("/").slice(2).join("/"); 
-// slice(2) 是去掉 https://username.github.io/repo/
+// 解析 URL
+let path = window.location.pathname.split("/").slice(2).join("/"); 
+// slice(2) 去掉 /repo/ 前缀
 
 async function load(path="") {
   const apiUrl = `https://api.github.com/repos/${user}/${repo}/contents/${path}`;
-  const res = await fetch(apiUrl);
-  const data = await res.json();
   const listDiv = document.getElementById("list");
   const mdViewer = document.getElementById("md-viewer");
   listDiv.innerHTML = "";
   mdViewer.innerHTML = "";
 
-  // 上级目录
-  if(path){
-    const up = path.split("/").slice(0,-1).join("/");
-    listDiv.innerHTML += `<a href="/${repo}/${up}">⬅ 返回上级</a>`;
-  }
+  try {
+    const res = await fetch(apiUrl);
+    if(!res.ok) throw new Error("目录不存在");
+    const data = await res.json();
 
-  data.forEach(item=>{
-    if(item.type==="dir"){
-      listDiv.innerHTML += `<a href="/${repo}/${item.path}">📁 ${item.name}</a>`;
-    } else {
-      const ext = item.name.split(".").pop().toLowerCase();
-      if(ext==="md"){
-        // md 文件点击在同页面渲染
-        listDiv.innerHTML += `<a href="/${repo}/${item.path}" class="md-link">📄 ${item.name}</a>`;
-      } else {
-        listDiv.innerHTML += `<a target="_blank" href="${item.download_url}">📄 ${item.name}</a>`;
-      }
+    // 上级目录
+    if(path){
+      const up = path.split("/").slice(0,-1).join("/");
+      listDiv.innerHTML += `<a href="/${repo}/${up}">⬅ 返回上级</a>`;
     }
-  });
 
-  // 如果 path 是 md 文件，自动渲染
-  if(path && path.endsWith(".md")){
-    const rawUrl = `https://raw.githubusercontent.com/${user}/${repo}/main/${path}`;
-    const mdRes = await fetch(rawUrl);
-    const text = await mdRes.text();
-    mdViewer.innerHTML = marked.parse(text);
+    data.forEach(item=>{
+      if(item.type==="dir"){
+        listDiv.innerHTML += `<a href="/${repo}/${item.path}">📁 ${item.name}</a>`;
+      } else {
+        listDiv.innerHTML += `<a href="/${repo}/${item.path}" class="file-link">📄 ${item.name}</a>`;
+      }
+    });
+
+  } catch(e){
+    // 目录不存在 → 可能是文件访问
+    await loadFile(path);
   }
+}
+
+// 自动识别文件类型并加载
+async function loadFile(path){
+  const mdViewer = document.getElementById("md-viewer");
+  for(const ext of extMap){
+    const url = `https://raw.githubusercontent.com/${user}/${repo}/main/${path}.${ext}`;
+    const res = await fetch(url);
+    if(res.ok){
+      if(ext==="md"){
+        const text = await res.text();
+        mdViewer.innerHTML = marked.parse(text);
+      } else {
+        window.open(url,"_blank");
+      }
+      return;
+    }
+  }
+  mdViewer.innerHTML = "<p>文件不存在</p>";
 }
 
 // 初始化
 load(path);
 
-// 拦截 md 链接，实现 SPA 渲染
+// SPA 点击拦截
 document.addEventListener("click", e=>{
-  if(e.target.classList.contains("md-link")){
-    e.preventDefault();
+  if(e.target.classList.contains("file-link") || e.target.tagName==="A"){
     const href = e.target.getAttribute("href");
-    history.pushState(null,null,href);
-    const filePath = href.split("/").slice(2).join("/");
-    load(filePath);
+    if(href && href.startsWith(`/${repo}/`)){
+      e.preventDefault();
+      history.pushState(null,null,href);
+      const newPath = href.split("/").slice(2).join("/");
+      load(newPath);
+    }
   }
 });
 
-// 支持浏览器前进后退
+// 前进后退支持
 window.addEventListener("popstate", ()=>{
   const newPath = window.location.pathname.split("/").slice(2).join("/");
   load(newPath);
 });
 </script>
+
 </body>
 </html>

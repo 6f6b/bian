@@ -2,32 +2,32 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>文件浏览器</title>
+<title>我的笔记</title>
 <style>
-body { font-family: Arial, sans-serif; padding: 20px; max-width: 900px; margin: auto; }
-h1 { margin-bottom: 20px; }
-a { display: block; margin: 4px 0; text-decoration: none; color: #0366d6; }
-a:hover { text-decoration: underline; }
-#md-viewer { border: 1px solid #ddd; padding: 20px; margin-top: 20px; }
-.back { font-weight: bold; }
+body{font-family:Arial;padding:20px;max-width:900px;margin:auto;}
+a{display:block;margin:4px 0;color:#0366d6;text-decoration:none;}
+a:hover{text-decoration:underline;}
+#md-viewer{border:1px solid #ddd;padding:20px;margin-top:20px;}
 </style>
 </head>
 <body>
-
 <h1>笔记浏览器</h1>
 <div id="list"></div>
 <div id="md-viewer"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
-const user = "6f6b"; // 改成你的 GitHub 用户名
-const repo = "bian";       // 改成你的仓库名
+const user = "6f6b";  // 改成你的用户名
+const repo = "bian";        // 改成你的仓库名
+
+// 解析路径
+const path = window.location.pathname.split("/").slice(2).join("/"); 
+// slice(2) 是去掉 https://username.github.io/repo/
 
 async function load(path="") {
   const apiUrl = `https://api.github.com/repos/${user}/${repo}/contents/${path}`;
   const res = await fetch(apiUrl);
   const data = await res.json();
-
   const listDiv = document.getElementById("list");
   const mdViewer = document.getElementById("md-viewer");
   listDiv.innerHTML = "";
@@ -36,47 +36,51 @@ async function load(path="") {
   // 上级目录
   if(path){
     const up = path.split("/").slice(0,-1).join("/");
-    listDiv.innerHTML += `<a class="back" href="?path=${up}">⬅ 返回上级</a>`;
+    listDiv.innerHTML += `<a href="/${repo}/${up}">⬅ 返回上级</a>`;
   }
 
-  data.forEach(item => {
-    if(item.type === "dir"){
-      listDiv.innerHTML += `<a href="?path=${item.path}">📁 ${item.name}</a>`;
+  data.forEach(item=>{
+    if(item.type==="dir"){
+      listDiv.innerHTML += `<a href="/${repo}/${item.path}">📁 ${item.name}</a>`;
     } else {
       const ext = item.name.split(".").pop().toLowerCase();
-      if(ext === "md"){
-        // md 文件点击渲染
-        listDiv.innerHTML += `<a href="?path=${item.path}&view=md">📄 ${item.name}</a>`;
+      if(ext==="md"){
+        // md 文件点击在同页面渲染
+        listDiv.innerHTML += `<a href="/${repo}/${item.path}" class="md-link">📄 ${item.name}</a>`;
       } else {
-        // 其他文件直接下载/打开
         listDiv.innerHTML += `<a target="_blank" href="${item.download_url}">📄 ${item.name}</a>`;
       }
     }
   });
+
+  // 如果 path 是 md 文件，自动渲染
+  if(path && path.endsWith(".md")){
+    const rawUrl = `https://raw.githubusercontent.com/${user}/${repo}/main/${path}`;
+    const mdRes = await fetch(rawUrl);
+    const text = await mdRes.text();
+    mdViewer.innerHTML = marked.parse(text);
+  }
 }
 
-// 解析 URL 参数
-const params = new URLSearchParams(location.search);
-const path = params.get("path") || "";
-const view = params.get("view");
+// 初始化
+load(path);
 
-// 加载 md 文件内容
-async function loadMd(filePath){
-  const rawUrl = `https://raw.githubusercontent.com/${user}/${repo}/main/${filePath}`;
-  const res = await fetch(rawUrl);
-  const text = await res.text();
-  document.getElementById("md-viewer").innerHTML = marked.parse(text);
-}
+// 拦截 md 链接，实现 SPA 渲染
+document.addEventListener("click", e=>{
+  if(e.target.classList.contains("md-link")){
+    e.preventDefault();
+    const href = e.target.getAttribute("href");
+    history.pushState(null,null,href);
+    const filePath = href.split("/").slice(2).join("/");
+    load(filePath);
+  }
+});
 
-if(view === "md" && path){
-  loadMd(path);
-  // 还显示所在目录
-  const folderPath = path.split("/").slice(0,-1).join("/");
-  load(folderPath);
-} else {
-  load(path);
-}
+// 支持浏览器前进后退
+window.addEventListener("popstate", ()=>{
+  const newPath = window.location.pathname.split("/").slice(2).join("/");
+  load(newPath);
+});
 </script>
-
 </body>
 </html>

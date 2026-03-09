@@ -48,7 +48,7 @@ async function load(path="") {
       if(item.type==="dir"){
         listDiv.innerHTML += `<a href="/${repo}/${item.path}">📁 ${item.name}</a>`;
       } else {
-        listDiv.innerHTML += `<a href="/${repo}/${item.path}" class="file-link">📄 ${item.name}</a>`;
+        listDiv.innerHTML += `<a href="/${repo}/${item.path.endsWith('.md') ? item.path.slice(0, -3) : item.path}" class="file-link">📄 ${item.name.endsWith('.md') ? item.name.slice(0, -3) : item.name}</a>`;
       }
     });
 

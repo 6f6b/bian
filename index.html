@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>My Notes</title>
+<style>
+body{font-family:Arial;padding:40px}
+a{display:block;margin:6px 0}
+</style>
+</head>
+<body>
+
+<h2>File Browser</h2>
+<div id="list"></div>
+
+<script>
+const user = "6f6b"
+const repo = "bian"
+
+async function load(path="") {
+  const url = `https://api.github.com/repos/${user}/${repo}/contents/${path}`
+  const res = await fetch(url)
+  const data = await res.json()
+
+  const list = document.getElementById("list")
+  list.innerHTML=""
+
+  if(path){
+    const up = path.split("/").slice(0,-1).join("/")
+    list.innerHTML += `<a href="?path=${up}">⬅ back</a>`
+  }
+
+  data.forEach(item=>{
+    if(item.type==="dir"){
+      list.innerHTML += `<a href="?path=${item.path}">📁 ${item.name}</a>`
+    }else{
+      list.innerHTML += `<a target="_blank" href="${item.download_url}">📄 ${item.name}</a>`
+    }
+  })
+}
+
+const params = new URLSearchParams(location.search)
+const path = params.get("path") || ""
+
+load(path)
+</script>
+
+</body>
+</html>
